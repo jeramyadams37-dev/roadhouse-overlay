@@ -11,8 +11,25 @@ android {
         applicationId = "com.atothei.roadhouse.overlay"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = 2
         versionName = "1.0"
+    }
+
+    // Explicit debug signing. The first CI build produced an APK with no
+    // signature files in META-INF and Android refused to parse it, so the
+    // debug keystore is generated in the workflow (standard debug
+    // credentials) and used here. If the keystore file is absent (local
+    // builds), AGP falls back to its default ~/.android/debug.keystore.
+    signingConfigs {
+        getByName("debug") {
+            val ks = file("../debug.keystore")
+            if (ks.exists()) {
+                storeFile = ks
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
