@@ -7,6 +7,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import java.util.Locale
 
@@ -33,6 +34,9 @@ class VoiceManager(private val context: Context) {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
 
+    /** Called when a spoken utterance finishes (or fails), for speak-then-listen flows. */
+    private var speakDone: (() -> Unit)? = null
+
     fun initTts() {
         if (tts != null) return
         tts = TextToSpeech(context.applicationContext) { status ->
@@ -40,12 +44,36 @@ class VoiceManager(private val context: Context) {
             if (ttsReady) {
                 tts?.language = Locale.US
                 tts?.setSpeechRate(1.0f)
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) = runSpeakDone()
+                    override fun onError(utteranceId: String?) = runSpeakDone()
+                })
             }
         }
     }
 
+    private fun runSpeakDone() {
+        val cb = speakDone
+        speakDone = null
+        cb?.invoke()
+    }
+
     fun speak(text: String) {
+        speak(text, null)
+    }
+
+    /**
+     * Speak, then run onDone when the utterance finishes. If TTS is
+     * unavailable, onDone runs immediately so a guided flow never stalls.
+     */
+    fun speak(text: String, onDone: (() -> Unit)?) {
         if (!ttsReady) initTts()
+        if (tts == null || !ttsReady) {
+            onDone?.invoke()
+            return
+        }
+        speakDone = onDone
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "rh-utterance")
     }
 

@@ -39,6 +39,14 @@
     <string name="settings_size_medium">Medium</string>
     <string name="settings_size_large">Large</string>
     <string name="log_count">Deliveries logged: %1$d</string>
+    <string name="settings_weather_label">Weather city (pre-shift check)</string>
+    <string name="settings_weather_hint">Petersburg, IL</string>
+    <string name="offer_count">Offers checked: %1$d</string>
+    <string name="note_count">Store notes saved: %1$d</string>
+    <string name="btn_export_offers">Share offer history</string>
+    <string name="btn_clear_offers">Clear offer history</string>
+    <string name="btn_export_notes">Share store notes</string>
+    <string name="btn_clear_notes">Clear store notes</string>
     <string name="btn_save">Save settings</string>
     <string name="btn_test_key">Test Gemini key</string>
     <string name="btn_export_log">Share delivery log</string>

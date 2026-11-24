@@ -11,7 +11,7 @@ android {
         applicationId = "com.atothei.roadhouse.overlay"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
+        versionCode = 5
         versionName = "1.0"
     }
 

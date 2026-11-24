@@ -13,16 +13,20 @@ import androidx.appcompat.app.AppCompatActivity
 
 /**
  * Settings: Gemini API key (BYOK), $/mile floor, voice on/off, overlay
- * button size, delivery-log export/clear. The key is stored encrypted and
- * is never shown in full after saving — the field is a password field.
+ * button size, weather city, delivery-log / offer-history / store-notes
+ * export/clear. The key is stored encrypted and is never shown in full
+ * after saving — the field is a password field.
  */
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var keyInput: EditText
     private lateinit var floorInput: EditText
+    private lateinit var weatherCityInput: EditText
     private lateinit var voiceSwitch: Switch
     private lateinit var sizeGroup: RadioGroup
     private lateinit var logCount: TextView
+    private lateinit var offerCount: TextView
+    private lateinit var noteCount: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,35 +34,53 @@ class SettingsActivity : AppCompatActivity() {
 
         keyInput = findViewById(R.id.input_api_key)
         floorInput = findViewById(R.id.input_floor)
+        weatherCityInput = findViewById(R.id.input_weather_city)
         voiceSwitch = findViewById(R.id.switch_voice)
         sizeGroup = findViewById(R.id.group_size)
         logCount = findViewById(R.id.text_log_count)
+        offerCount = findViewById(R.id.text_offer_count)
+        noteCount = findViewById(R.id.text_note_count)
 
         keyInput.setText(Prefs.getApiKey(this))
         floorInput.setText("%.2f".format(Prefs.getFloor(this)))
+        weatherCityInput.setText(Prefs.getWeatherCity(this))
         voiceSwitch.isChecked = Prefs.isVoiceEnabled(this)
         when (Prefs.getOverlaySize(this)) {
             "small" -> sizeGroup.check(R.id.radio_small)
             "large" -> sizeGroup.check(R.id.radio_large)
             else -> sizeGroup.check(R.id.radio_medium)
         }
-        refreshLogCount()
+        refreshCounts()
 
         findViewById<Button>(R.id.btn_save).setOnClickListener { save() }
         findViewById<Button>(R.id.btn_test_key).setOnClickListener { testKey() }
         findViewById<Button>(R.id.btn_export_log).setOnClickListener { exportLog() }
         findViewById<Button>(R.id.btn_clear_log).setOnClickListener {
             DeliveryLog.clear(this)
-            refreshLogCount()
+            refreshCounts()
             Toast.makeText(this, "Delivery log cleared.", Toast.LENGTH_SHORT).show()
+        }
+        findViewById<Button>(R.id.btn_export_offers).setOnClickListener { exportOffers() }
+        findViewById<Button>(R.id.btn_clear_offers).setOnClickListener {
+            OfferMemory.clear(this)
+            refreshCounts()
+            Toast.makeText(this, "Offer history cleared.", Toast.LENGTH_SHORT).show()
+        }
+        findViewById<Button>(R.id.btn_export_notes).setOnClickListener { exportNotes() }
+        findViewById<Button>(R.id.btn_clear_notes).setOnClickListener {
+            StoreNotes.clear(this)
+            refreshCounts()
+            Toast.makeText(this, "Store notes cleared.", Toast.LENGTH_SHORT).show()
         }
         findViewById<Button>(R.id.btn_accessibility).setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
     }
 
-    private fun refreshLogCount() {
+    private fun refreshCounts() {
         logCount.text = getString(R.string.log_count, DeliveryLog.count(this))
+        offerCount.text = getString(R.string.offer_count, OfferMemory.count(this))
+        noteCount.text = getString(R.string.note_count, StoreNotes.count(this))
     }
 
     private fun save() {
@@ -73,6 +95,7 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
         Prefs.setFloor(this, floor)
+        Prefs.setWeatherCity(this, weatherCityInput.text.toString())
         Prefs.setVoiceEnabled(this, voiceSwitch.isChecked)
         val size = when (sizeGroup.checkedRadioButtonId) {
             R.id.radio_small -> "small"
@@ -118,5 +141,25 @@ class SettingsActivity : AppCompatActivity() {
             putExtra(Intent.EXTRA_TEXT, json)
         }
         startActivity(Intent.createChooser(intent, "Share delivery log"))
+    }
+
+    private fun exportOffers() {
+        val json = OfferMemory.readAll(this).toString(2)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_SUBJECT, "RoadHouse Overlay offer history")
+            putExtra(Intent.EXTRA_TEXT, json)
+        }
+        startActivity(Intent.createChooser(intent, "Share offer history"))
+    }
+
+    private fun exportNotes() {
+        val json = StoreNotes.readAll(this).toString(2)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_SUBJECT, "RoadHouse Overlay store notes")
+            putExtra(Intent.EXTRA_TEXT, json)
+        }
+        startActivity(Intent.createChooser(intent, "Share store notes"))
     }
 }

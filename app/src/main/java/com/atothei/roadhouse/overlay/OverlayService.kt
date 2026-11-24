@@ -318,6 +318,10 @@ class OverlayService : Service(), VoiceManager.Listener, VoiceCommandHandler.Out
     // ---- voice (VoiceManager.Listener) ----
 
     fun startListening() {
+        startListening(showListeningCard = true)
+    }
+
+    fun startListening(showListeningCard: Boolean) {
         mainHandler.post {
             if (!Prefs.isVoiceEnabled(this)) {
                 showCard(
@@ -327,9 +331,20 @@ class OverlayService : Service(), VoiceManager.Listener, VoiceCommandHandler.Out
                 )
                 return@post
             }
-            showCard("Listening…", "Speak your command…", listOf("hide"))
+            if (showListeningCard) showCard("Listening…", "Speak your command…", listOf("hide"))
             voice.startListening()
         }
+    }
+
+    /**
+     * Speak a question, then start listening once the speech finishes, so
+     * the recognizer does not hear the tail of our own voice. Used by the
+     * guided pre-shift check. With voice off, the question card is the
+     * prompt and typed answers work instead.
+     */
+    override fun speakAndListen(text: String) {
+        if (!Prefs.isVoiceEnabled(this)) return
+        voice.speak(text) { startListening(showListeningCard = false) }
     }
 
     override fun onCommand(text: String) {
@@ -365,6 +380,25 @@ class OverlayService : Service(), VoiceManager.Listener, VoiceCommandHandler.Out
 
     fun askGeminiFromCard(question: String) {
         mainHandler.post { commands.handle(question) }
+    }
+
+    /** Remember a check the card ran, so "Took it" / "Skipped it" works. */
+    fun noteCheckedOffer(record: OfferMemoryRecord) {
+        commands.noteCheckedOffer(record)
+    }
+
+    /** Record took / skipped for the most recent check; returns the message. */
+    fun recordOfferOutcome(outcome: OfferOutcome): String {
+        return commands.recordOutcomeMessage(outcome)
+    }
+
+    fun startPreShift() {
+        mainHandler.post { commands.startPreShift() }
+    }
+
+    /** Earnings tally JSON for a card button; pure code math, no read needed. */
+    fun earningsSummary(range: String): String {
+        return commands.earningsSummary(range)
     }
 
     fun openSettings() {

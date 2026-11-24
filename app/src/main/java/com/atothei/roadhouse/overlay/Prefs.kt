@@ -18,8 +18,13 @@ object Prefs {
     private const val KEY_VOICE = "voice_enabled"
     private const val KEY_SIZE = "overlay_size"
     private const val KEY_ONBOARDING = "onboarding_done"
+    private const val KEY_WEATHER_CITY = "weather_city"
+    private const val KEY_WEATHER_CITY_CACHED = "weather_city_cached"
+    private const val KEY_WEATHER_LAT = "weather_lat"
+    private const val KEY_WEATHER_LON = "weather_lon"
 
     const val DEFAULT_FLOOR = 1.00
+    const val DEFAULT_WEATHER_CITY = "Petersburg, IL"
 
     @Volatile
     private var encryptedFailed = false
@@ -87,5 +92,33 @@ object Prefs {
 
     fun setOnboardingDone(context: Context) {
         prefs(context).edit().putBoolean(KEY_ONBOARDING, true).apply()
+    }
+
+    /** City used for the pre-shift weather check. Default: home base. */
+    fun getWeatherCity(context: Context): String =
+        prefs(context).getString(KEY_WEATHER_CITY, DEFAULT_WEATHER_CITY)
+            ?: DEFAULT_WEATHER_CITY
+
+    fun setWeatherCity(context: Context, city: String) {
+        val clean = city.trim().ifBlank { DEFAULT_WEATHER_CITY }
+        prefs(context).edit().putString(KEY_WEATHER_CITY, clean).apply()
+    }
+
+    /** Cached geocode for a city, so Nominatim is asked once per city. */
+    fun getCachedLatLon(context: Context, city: String): Pair<Double, Double>? {
+        val p = prefs(context)
+        if (p.getString(KEY_WEATHER_CITY_CACHED, "") != city) return null
+        if (!p.contains(KEY_WEATHER_LAT) || !p.contains(KEY_WEATHER_LON)) return null
+        val lat = p.getFloat(KEY_WEATHER_LAT, Float.NaN).toDouble()
+        val lon = p.getFloat(KEY_WEATHER_LON, Float.NaN).toDouble()
+        return if (lat.isNaN() || lon.isNaN()) null else lat to lon
+    }
+
+    fun setCachedLatLon(context: Context, city: String, lat: Double, lon: Double) {
+        prefs(context).edit()
+            .putString(KEY_WEATHER_CITY_CACHED, city)
+            .putFloat(KEY_WEATHER_LAT, lat.toFloat())
+            .putFloat(KEY_WEATHER_LON, lon.toFloat())
+            .apply()
     }
 }

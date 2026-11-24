@@ -86,6 +86,10 @@
       else if (a === 'check') { b.textContent = 'Check offer'; b.onclick = checkOffer; }
       else if (a === 'navigate') { b.textContent = 'Navigate'; b.onclick = function () { RoadHouse.navigate(currentAddress); }; }
       else if (a === 'log') { b.textContent = 'Log delivery'; b.onclick = logDelivery; }
+      else if (a === 'took') { b.textContent = 'Took it'; b.onclick = function () { recordOutcome('took'); }; }
+      else if (a === 'skipped') { b.textContent = 'Skipped it'; b.onclick = function () { recordOutcome('skipped'); }; }
+      else if (a === 'preshift') { b.textContent = 'Pre-shift check'; b.onclick = function () { RoadHouse.startPreShift(); }; }
+      else if (a === 'earnings') { b.textContent = 'Earnings'; b.onclick = function () { showEarnings('today'); }; }
       else if (a === 'hide') { b.textContent = 'Hide'; b.onclick = function () { RoadHouse.hideCard(); }; }
       else if (a === 'settings') { b.textContent = 'Settings'; b.onclick = function () { RoadHouse.openSettings(); }; }
       wrap.appendChild(b);
@@ -103,11 +107,27 @@
       }
       currentAddress = r.address || '';
       var lines = [];
+      if (r.isBatch) lines.push('Batch: ' + (r.stops ? r.stops.length : 0) + ' stops');
       if (r.pay !== null) lines.push('Pay: $' + r.pay.toFixed(2));
       if (r.miles !== null) lines.push('Miles: ' + r.miles.toFixed(1));
       if (r.perMile !== null) lines.push('Per mile: $' + r.perMile.toFixed(2));
       lines.push('Floor: $' + r.floor.toFixed(2) + ' / mile');
-      if (r.address) lines.push('Address: ' + r.address);
+      if (r.isBatch && r.stops) {
+        r.stops.forEach(function (s, i) {
+          var stopLine = 'Stop ' + (i + 1) + ': ' + s.address;
+          if (s.miles !== null) stopLine += ' — ' + s.miles.toFixed(1) + ' mi';
+          if (s.pay !== null) stopLine += ' — $' + s.pay.toFixed(2);
+          lines.push(stopLine);
+        });
+      } else if (r.address) {
+        lines.push('Address: ' + r.address);
+      }
+      if (r.memory) { lines.push(''); lines.push(r.memory); }
+      if (r.notes) {
+        lines.push('');
+        lines.push('Notes for this store:');
+        r.notes.forEach(function (n) { lines.push('• ' + n); });
+      }
       lines.push('');
       lines.push(r.spoken);
       if (r.readAge) { lines.push(''); lines.push('Screen ' + r.readAge + ' · ' + r.platform); }
@@ -115,11 +135,34 @@
       el('body').innerHTML = escapeHtml(lines.join('\n'))
         .replace(/Take it\./g, '<span class="good">Take it.</span>')
         .replace(/Skip it\./g, '<span class="bad">Skip it.</span>');
-      renderButtons(['navigate', 'log', 'hide']);
+      renderButtons(['navigate', 'log', 'took', 'skipped', 'hide']);
       try { el('app').textContent = r.platform; } catch (e) {}
       RoadHouse.speak(r.spoken);
     } catch (e) {
       el('body').textContent = 'Could not check this offer: ' + e.message;
+    }
+  }
+
+  function recordOutcome(outcome) {
+    try {
+      var r = JSON.parse(RoadHouse.recordOfferOutcome(outcome));
+      el('title').textContent = 'Offer recorded';
+      el('body').textContent = r.message || 'Recorded.';
+      renderButtons(['hide']);
+    } catch (e) {
+      el('body').textContent = 'Could not record that: ' + e.message;
+    }
+  }
+
+  function showEarnings(range) {
+    try {
+      var r = JSON.parse(RoadHouse.earningsSummary(range || 'today'));
+      el('title').textContent = 'Earnings — ' + r.label;
+      el('body').textContent = r.text;
+      renderButtons(['hide']);
+      RoadHouse.speak(r.text);
+    } catch (e) {
+      el('body').textContent = 'Could not tally earnings: ' + e.message;
     }
   }
 
@@ -153,7 +196,7 @@
   }
 
   // Default buttons when the card first opens.
-  renderButtons(['listen', 'check', 'hide']);
+  renderButtons(['listen', 'check', 'preshift', 'earnings', 'hide']);
   try { el('app').textContent = RoadHouse.getForegroundApp(); } catch (e) {}
 </script>
 </body>

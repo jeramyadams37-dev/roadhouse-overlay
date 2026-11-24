@@ -80,11 +80,40 @@
         </RadioGroup>
 
         <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/settings_weather_label"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/input_weather_city"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:hint="@string/settings_weather_hint"
+            android:inputType="text" />
+
+        <TextView
             android:id="@+id/text_log_count"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/log_count" />
+
+        <TextView
+            android:id="@+id/text_offer_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/offer_count" />
+
+        <TextView
+            android:id="@+id/text_note_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/note_count" />
 
         <Button
             android:id="@+id/btn_save"
@@ -113,6 +142,34 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/btn_clear_log" />
+
+        <Button
+            android:id="@+id/btn_export_offers"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/btn_export_offers" />
+
+        <Button
+            android:id="@+id/btn_clear_offers"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/btn_clear_offers" />
+
+        <Button
+            android:id="@+id/btn_export_notes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/btn_export_notes" />
+
+        <Button
+            android:id="@+id/btn_clear_notes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/btn_clear_notes" />
 
         <Button
             android:id="@+id/btn_accessibility"

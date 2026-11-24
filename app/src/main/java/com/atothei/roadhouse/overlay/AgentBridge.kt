@@ -1,13 +1,15 @@
 package com.atothei.roadhouse.overlay
 
 import android.webkit.JavascriptInterface
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
  * JS bridge for the overlay card WebView (window.RoadHouse).
  * Same shape as the proven AI Overlay APK bridge (getScreenContext,
  * launchApp-style helpers), extended for the driver use case: offer checks
- * computed in code, Gemini questions, navigation, delivery logging.
+ * computed in code, Gemini questions, navigation, delivery logging,
+ * offer memory, store notes, earnings tallies, pre-shift checks.
  */
 class AgentBridge(private val service: OverlayService) {
 
@@ -39,6 +41,7 @@ class AgentBridge(private val service: OverlayService) {
      * Offer check with the $/mile math done in code. Returns JSON with
      * "ok": true on success, or "ok": false + "error" when the screen
      * could not be read right now — never a verdict from stale text.
+     * Includes batch stops, offer-memory and store-note lines when present.
      */
     @JavascriptInterface
     fun checkOffer(): String {
@@ -58,10 +61,57 @@ class AgentBridge(private val service: OverlayService) {
                 put("spoken", read.failureMessage())
                 put("note", read.failureMessage())
                 put("readAge", read.ageLabel())
+                put("isBatch", false)
+                put("stops", JSONArray())
+                put("memory", JSONObject.NULL)
+                put("notes", JSONObject.NULL)
             }.toString()
         }
         val platform = Platforms.displayName(read.packageName)
-        val result = OfferParser.check(read.text, floor)
+        val result = OfferParser.checkBatch(read.text, floor)
+        val key = OfferParser.storeKey(read.text, platform)
+        val label = OfferParser.storeLabel(read.text, platform)
+
+        // Look up memory BEFORE recording this check, or it would match itself.
+        val match = OfferMemory.findMatch(service, key, result.pay, result.miles)
+        val storeOnly = if (match == null) OfferMemory.findStore(service, key) else null
+        val memoryLine = OfferMemory.memoryLine(match, storeOnly)
+        val notes = StoreNotes.notesFor(service, key)
+        val noteLine = StoreNotes.spokenLine(notes)
+
+        // Remember this check; the driver fills in took/skipped afterwards.
+        val (date, time) = DeliveryLog.nowParts()
+        val record = OfferMemoryRecord(
+            id = OfferMemory.newId(),
+            date = date,
+            time = time,
+            platform = platform,
+            storeKey = key,
+            storeLabel = label,
+            pay = result.pay,
+            miles = result.miles,
+            perMile = result.perMile,
+            verdict = result.verdict,
+            outcome = OfferOutcome.UNKNOWN,
+            stops = result.stops.map { it.address }
+        )
+        OfferMemory.append(service, record)
+        service.noteCheckedOffer(record)
+
+        val spoken = buildString {
+            append(OfferParser.speakBatchText(result, platform))
+            if (memoryLine != null) append(" $memoryLine")
+            if (noteLine != null) append(" $noteLine")
+        }.toString()
+        val stopsJson = JSONArray().apply {
+            for (stop in result.stops) {
+                put(JSONObject().apply {
+                    put("address", stop.address)
+                    if (stop.miles != null) put("miles", stop.miles) else put("miles", JSONObject.NULL)
+                    if (stop.pay != null) put("pay", stop.pay) else put("pay", JSONObject.NULL)
+                })
+            }
+        }
         return JSONObject().apply {
             put("ok", true)
             put("platform", platform)
@@ -71,10 +121,38 @@ class AgentBridge(private val service: OverlayService) {
             put("floor", result.floor)
             put("address", result.address ?: JSONObject.NULL)
             put("verdict", result.verdict.name)
-            put("spoken", OfferParser.speakText(result, platform))
+            put("spoken", spoken)
             put("note", result.note)
             put("readAge", read.ageLabel())
+            put("isBatch", result.isBatch)
+            put("stops", stopsJson)
+            put("memory", memoryLine ?: JSONObject.NULL)
+            put("notes", if (notes.isEmpty()) JSONObject.NULL else JSONArray(notes.map { it.text }))
         }.toString()
+    }
+
+    /** Record took / skipped for the most recent offer check. */
+    @JavascriptInterface
+    fun recordOfferOutcome(outcome: String): String {
+        val parsed = if (outcome.lowercase().contains("took")) OfferOutcome.TOOK else OfferOutcome.SKIPPED
+        val message = service.recordOfferOutcome(parsed)
+        service.speak(message)
+        return JSONObject().apply {
+            put("ok", message.isNotBlank())
+            put("message", message)
+        }.toString()
+    }
+
+    /** Start the guided pre-shift check (card + voice). */
+    @JavascriptInterface
+    fun startPreShift() {
+        service.startPreShift()
+    }
+
+    /** Earnings tally as JSON: {"ok":true,"label","count","totalPay","totalMiles","perMile","text"}. */
+    @JavascriptInterface
+    fun earningsSummary(range: String): String {
+        return service.earningsSummary(range)
     }
 
     @JavascriptInterface

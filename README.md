@@ -39,6 +39,40 @@ decides. It never touches driver accounts or credentials.
   Gemini key → floor → start. Restarts itself after reboot once setup is
   done.
 
+## What's new in v1.4 — five features
+
+- **Offer memory** — every offer checked is saved locally (pay, miles,
+  $/mile, store, date, verdict). After a check the card asks "Took it" /
+  "Skipped it" — tap one, or say "took it" / "skipped it". Next time the
+  same store's offer appears, the card and the voice say so: "You skipped
+  this offer last time — $12.50 for 8.2 miles." Same store, different
+  numbers still warns: "You've seen this store before."
+- **Earnings tally** — say "how much today" / "how much this week" /
+  "how much this month". The math runs in code on the delivery log:
+  total pay, total miles, deliveries, average $/mile. Nothing logged for
+  the range says so plainly. Also an Earnings button on the card.
+- **Pre-shift check** — say "pre-shift check" or tap the card button. It
+  walks through three questions by voice: vehicle OK, fuel level, which
+  apps you're running — then fetches the weather for your city (free
+  Open-Meteo, no key, fail-soft) and speaks a short summary. The apps
+  answer is what YOU say; the overlay cannot detect another app's online
+  status and never pretends to. The check is saved locally. Say "cancel"
+  to stop mid-check.
+- **Store notes** — say "remember: this Walmart's pickup is at the back"
+  to save a note for the store on screen, or "what do I know about this
+  store" to hear it back. Notes come back automatically on the next offer
+  check for that store. "Forget that note" deletes them. Notes live in
+  local JSON; manage/export them in Settings.
+- **Batch math** — Spark batches with several drops: the offer check now
+  shows the batch total (pay, miles, $/mile, verdict on the whole batch)
+  plus a per-stop breakdown (each stop's miles where the screen shows
+  them). Single-stop offers work exactly as before.
+
+All five are on-demand only: no polling, no timers, no background reads,
+no background Gemini calls. Earnings and batch math are code math, never
+Gemini. Offer memory, notes, and pre-shift records are local JSON files
+in the app's private files dir — nothing leaves the phone.
+
 ## Privacy
 
 - Screen text goes to Google's Gemini API **only**, and only as part of a
@@ -113,6 +147,18 @@ If nothing pops up, tap the APK in the Files app instead. (Recurring quirk:
 5. Say **"what's the address?"** or any question about the screen — Gemini
    answers out loud and on the card.
 6. Drag the mic button — it should move and stay where you put it.
+7. Offer memory: check an offer, tap **Took it** or **Skipped it**, then
+   check the same offer again — the card should say you took/skipped it
+   last time.
+8. Say **"how much today"** — it should read back the logged deliveries,
+   pay, miles, and average $/mile (log one first, or it says nothing is
+   logged yet).
+9. Say **"pre-shift check"** — answer the three questions by voice; it
+   should finish with a summary including the weather.
+10. Say **"remember: pickup is at the back"** on a store screen, then
+    **"what do I know about this store"** — it should read the note back.
+11. On a multi-stop Spark batch, **"check this offer"** should show the
+    batch total plus a per-stop breakdown.
 
 ## Troubleshooting
 
