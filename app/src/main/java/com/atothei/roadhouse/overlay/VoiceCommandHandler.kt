@@ -23,17 +23,31 @@ class VoiceCommandHandler(private val context: Context) {
     var output: Output? = null
 
     fun handle(command: String) {
-        val screenText = ScreenReaderService.currentScreenText
-        val platform = Platforms.displayName(ScreenReaderService.foregroundPackage)
+        // One fresh read per request. A read taken within the last few
+        // seconds is reused for an immediate follow-up; anything older is
+        // re-read now. A failed read answers plainly — never from old text.
+        val read = ScreenReaderService.readFresh()
+        if (!read.isOk) {
+            val msg = read.failureMessage()
+            output?.speak(msg)
+            output?.showCard("Can't see the screen", msg, listOf("hide"))
+            return
+        }
+        val screenText = read.text
+        val platform = Platforms.displayName(read.packageName)
         val lower = command.lowercase()
 
         when {
             isNavigate(lower) -> handleNavigate(screenText)
-            isLog(lower) -> handleLog(screenText, platform)
-            isOfferCheck(lower) -> handleOfferCheck(screenText, platform)
-            else -> handleAsk(command, screenText)
+            isLog(lower) -> handleLog(screenText, platform, read)
+            isOfferCheck(lower) -> handleOfferCheck(screenText, platform, read)
+            else -> handleAsk(command, screenText, platform, read)
         }
     }
+
+    /** "Read just now · Spark" — honest about how fresh the screen was. */
+    private fun readFooter(read: ScreenReaderService.ScreenRead, platform: String): String =
+        "\n\n${read.ageLabel().replaceFirstChar { it.uppercaseChar() }} · $platform"
 
     private fun isNavigate(lower: String) =
         lower.contains("navigate") || lower.contains("directions") ||
@@ -59,7 +73,11 @@ class VoiceCommandHandler(private val context: Context) {
         output?.navigateTo(address)
     }
 
-    private fun handleLog(screenText: String, platform: String) {
+    private fun handleLog(
+        screenText: String,
+        platform: String,
+        read: ScreenReaderService.ScreenRead
+    ) {
         val result = OfferParser.check(screenText, Prefs.getFloor(context))
         val (date, time) = DeliveryLog.nowParts()
         val ok = DeliveryLog.append(
@@ -74,10 +92,14 @@ class VoiceCommandHandler(private val context: Context) {
             "I couldn't save that delivery. Try again."
         }
         output?.speak(msg)
-        output?.showCard("Delivery logged", msg, listOf("hide"))
+        output?.showCard("Delivery logged", msg + readFooter(read, platform), listOf("hide"))
     }
 
-    private fun handleOfferCheck(screenText: String, platform: String) {
+    private fun handleOfferCheck(
+        screenText: String,
+        platform: String,
+        read: ScreenReaderService.ScreenRead
+    ) {
         val result = OfferParser.check(screenText, Prefs.getFloor(context))
         val spoken = OfferParser.speakText(result, platform)
         output?.speak(spoken)
@@ -88,11 +110,17 @@ class VoiceCommandHandler(private val context: Context) {
             append("Floor: $%.2f / mile\n".format(result.floor))
             if (result.address != null) append("Address: ${result.address}\n")
             append("\n$spoken")
+            append(readFooter(read, platform))
         }
         output?.showCard("Offer check — $platform", body.trim(), listOf("navigate", "log", "hide"))
     }
 
-    private fun handleAsk(question: String, screenText: String) {
+    private fun handleAsk(
+        question: String,
+        screenText: String,
+        platform: String,
+        read: ScreenReaderService.ScreenRead
+    ) {
         val key = Prefs.getApiKey(context)
         if (key.isBlank()) {
             val msg = "No Gemini key set yet. Open Settings in the RoadHouse Overlay app and paste your key."
@@ -104,7 +132,7 @@ class VoiceCommandHandler(private val context: Context) {
         GeminiClient.ask(key, question, screenText, object : GeminiClient.Callback {
             override fun onResult(text: String) {
                 output?.speak(text)
-                output?.showCard("RoadHouse", text, listOf("hide"))
+                output?.showCard("RoadHouse", text + readFooter(read, platform), listOf("hide"))
             }
 
             override fun onError(message: String) {

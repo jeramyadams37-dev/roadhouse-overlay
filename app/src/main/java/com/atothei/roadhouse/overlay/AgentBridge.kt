@@ -11,16 +11,23 @@ import org.json.JSONObject
  */
 class AgentBridge(private val service: OverlayService) {
 
-    @JavascriptInterface
-    fun getScreenContext(): String = ScreenReaderService.currentScreenText
+    /** Fresh read for this request (a few-second-old read is reused). */
+    private fun freshPackage(): String {
+        val read = ScreenReaderService.readFresh()
+        return if (read.isOk) read.packageName else ScreenReaderService.foregroundPackage
+    }
 
     @JavascriptInterface
-    fun getForegroundApp(): String =
-        Platforms.displayName(ScreenReaderService.foregroundPackage)
+    fun getScreenContext(): String {
+        val read = ScreenReaderService.readFresh()
+        return if (read.isOk) read.text else ""
+    }
 
     @JavascriptInterface
-    fun isDeliveryApp(): Boolean =
-        Platforms.isDeliveryApp(ScreenReaderService.foregroundPackage)
+    fun getForegroundApp(): String = Platforms.displayName(freshPackage())
+
+    @JavascriptInterface
+    fun isDeliveryApp(): Boolean = Platforms.isDeliveryApp(freshPackage())
 
     @JavascriptInterface
     fun getFloor(): Double = Prefs.getFloor(service)
@@ -28,13 +35,35 @@ class AgentBridge(private val service: OverlayService) {
     @JavascriptInterface
     fun isVoiceEnabled(): Boolean = Prefs.isVoiceEnabled(service)
 
-    /** Offer check with the $/mile math done in code. Returns JSON. */
+    /**
+     * Offer check with the $/mile math done in code. Returns JSON with
+     * "ok": true on success, or "ok": false + "error" when the screen
+     * could not be read right now — never a verdict from stale text.
+     */
     @JavascriptInterface
     fun checkOffer(): String {
-        val screenText = ScreenReaderService.currentScreenText
-        val platform = Platforms.displayName(ScreenReaderService.foregroundPackage)
-        val result = OfferParser.check(screenText, Prefs.getFloor(service))
+        val read = ScreenReaderService.readFresh()
+        val floor = Prefs.getFloor(service)
+        if (!read.isOk) {
+            return JSONObject().apply {
+                put("ok", false)
+                put("error", read.failureMessage())
+                put("platform", Platforms.displayName(ScreenReaderService.foregroundPackage))
+                put("pay", JSONObject.NULL)
+                put("miles", JSONObject.NULL)
+                put("perMile", JSONObject.NULL)
+                put("floor", floor)
+                put("address", JSONObject.NULL)
+                put("verdict", Verdict.UNKNOWN.name)
+                put("spoken", read.failureMessage())
+                put("note", read.failureMessage())
+                put("readAge", read.ageLabel())
+            }.toString()
+        }
+        val platform = Platforms.displayName(read.packageName)
+        val result = OfferParser.check(read.text, floor)
         return JSONObject().apply {
+            put("ok", true)
             put("platform", platform)
             put("pay", result.pay ?: JSONObject.NULL)
             put("miles", result.miles ?: JSONObject.NULL)
@@ -44,6 +73,7 @@ class AgentBridge(private val service: OverlayService) {
             put("verdict", result.verdict.name)
             put("spoken", OfferParser.speakText(result, platform))
             put("note", result.note)
+            put("readAge", read.ageLabel())
         }.toString()
     }
 
@@ -65,7 +95,16 @@ class AgentBridge(private val service: OverlayService) {
     @JavascriptInterface
     fun navigate(address: String) {
         val target = address.ifBlank {
-            OfferParser.parseAddress(ScreenReaderService.currentScreenText.replace('\n', ' '))
+            val read = ScreenReaderService.readFresh()
+            if (!read.isOk) {
+                service.showCard(
+                    "Can't see the screen",
+                    read.failureMessage(),
+                    listOf("hide")
+                )
+                return
+            }
+            OfferParser.parseAddress(read.text.replace('\n', ' '))
         } ?: ""
         if (target.isBlank()) {
             service.showCard(
@@ -81,9 +120,16 @@ class AgentBridge(private val service: OverlayService) {
     /** Logs the current screen's delivery. Returns {"ok":bool,"count":n}. */
     @JavascriptInterface
     fun logDelivery(): String {
-        val screenText = ScreenReaderService.currentScreenText
-        val platform = Platforms.displayName(ScreenReaderService.foregroundPackage)
-        val result = OfferParser.check(screenText, Prefs.getFloor(service))
+        val read = ScreenReaderService.readFresh()
+        if (!read.isOk) {
+            return JSONObject().apply {
+                put("ok", false)
+                put("error", read.failureMessage())
+                put("count", DeliveryLog.count(service))
+            }.toString()
+        }
+        val platform = Platforms.displayName(read.packageName)
+        val result = OfferParser.check(read.text, Prefs.getFloor(service))
         val (date, time) = DeliveryLog.nowParts()
         val ok = DeliveryLog.append(
             service,
@@ -91,6 +137,7 @@ class AgentBridge(private val service: OverlayService) {
         )
         return JSONObject().apply {
             put("ok", ok)
+            put("error", if (ok) JSONObject.NULL else "Could not save that delivery. Try again.")
             put("count", DeliveryLog.count(service))
         }.toString()
     }

@@ -95,6 +95,12 @@
   function checkOffer() {
     try {
       var r = JSON.parse(RoadHouse.checkOffer());
+      if (r.ok === false) {
+        el('title').textContent = "Can't see the screen";
+        el('body').textContent = r.error || 'Could not check this offer.';
+        renderButtons(['hide']);
+        return;
+      }
       currentAddress = r.address || '';
       var lines = [];
       if (r.pay !== null) lines.push('Pay: $' + r.pay.toFixed(2));
@@ -104,6 +110,7 @@
       if (r.address) lines.push('Address: ' + r.address);
       lines.push('');
       lines.push(r.spoken);
+      if (r.readAge) { lines.push(''); lines.push('Screen ' + r.readAge + ' · ' + r.platform); }
       el('title').textContent = 'Offer check — ' + r.platform;
       el('body').innerHTML = escapeHtml(lines.join('\n'))
         .replace(/Take it\./g, '<span class="good">Take it.</span>')
@@ -121,7 +128,7 @@
       var r = JSON.parse(RoadHouse.logDelivery());
       el('body').textContent = r.ok
         ? 'Logged. ' + r.count + ' deliveries in the log.'
-        : 'Could not save that delivery. Try again.';
+        : (r.error || 'Could not save that delivery. Try again.');
       renderButtons(['hide']);
     } catch (e) {
       el('body').textContent = 'Could not save that delivery: ' + e.message;
