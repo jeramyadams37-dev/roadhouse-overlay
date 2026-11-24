@@ -11,3 +11,5 @@ local.properties
 app/build/
 *.apk
 *.aab
+debug.keystore
+debug.keystore.b64

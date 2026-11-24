@@ -22,11 +22,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Create debug keystore
+      - name: Restore debug keystore
         run: |
-          if [ ! -f debug.keystore ]; then
-            keytool -genkeypair -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=RoadHouse Overlay Debug, OU=AtotheI, O=AtotheI, L=Petersburg, ST=Illinois, C=US"
+          if [ -z "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" ]; then
+            echo "DEBUG_KEYSTORE_BASE64 secret is not set. Set it with: gh secret set DEBUG_KEYSTORE_BASE64 --repo jeramyadams37-dev/roadhouse-overlay < debug.keystore.b64"
+            exit 1
           fi
+          echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
 
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
