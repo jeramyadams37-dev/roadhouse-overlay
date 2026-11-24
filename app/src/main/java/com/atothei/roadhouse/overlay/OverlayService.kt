@@ -173,7 +173,15 @@ class OverlayService : Service(), VoiceManager.Listener, VoiceCommandHandler.Out
         windowManager.addView(button, params)
     }
 
-    /** Drag to move; a tap (under 10px of movement) still fires the click. */
+    /**
+     * Drag to move; a tap (under 10px of movement) still fires the click.
+     * The touch listener must return false on ACTION_UP for a tap, or the
+     * View never sees the UP and performClick() never runs — that was the
+     * bug: taps did nothing (no listening) while a lingering tap tripped
+     * the long-press offer check instead. UP is consumed only after a real
+     * drag, so dragging never fires a click; a drag also cancels any
+     * pending long-press so a slow drag can't trigger the offer check.
+     */
     private fun makeDraggable(view: View, params: WindowManager.LayoutParams) {
         var downX = 0f
         var downY = 0f
@@ -195,6 +203,7 @@ class OverlayService : Service(), VoiceManager.Listener, VoiceCommandHandler.Out
                     val dy = (event.rawY - downY).toInt()
                     if (abs(dx) > 10 || abs(dy) > 10) moved = true
                     if (moved) {
+                        view.cancelLongPress()
                         params.x = startX + dx
                         params.y = startY + dy
                         windowManager.updateViewLayout(view, params)
@@ -202,7 +211,9 @@ class OverlayService : Service(), VoiceManager.Listener, VoiceCommandHandler.Out
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    !moved
+                    // Consume UP only after a drag (suppresses the click);
+                    // on a tap let it through so performClick() fires.
+                    moved
                 }
                 else -> false
             }
